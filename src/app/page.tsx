@@ -1,103 +1,233 @@
-import Image from "next/image";
+"use client";
+
+import React, { useEffect, useRef, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
+
+type Todo = {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: number;
+};
+
+const STORAGE_KEY = "todos:v1";
+
+function loadTodos(): Todo[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as Todo[];
+  } catch (e) {
+    console.warn("Failed to load todos", e);
+    return [];
+  }
+}
+
+function saveTodos(todos: Todo[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+  } catch (e) {
+    console.warn("Failed to save todos", e);
+  }
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [todos, setTodos] = useState<Todo[]>(() => (typeof window !== "undefined" ? loadTodos() : []));
+  const [text, setText] = useState("");
+  const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  useEffect(() => {
+    saveTodos(todos);
+  }, [todos]);
+
+  useEffect(() => {
+    // focus the input on mount
+    inputRef.current?.focus();
+  }, []);
+
+  function addTodo(e?: React.FormEvent) {
+    e?.preventDefault();
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const newTodo: Todo = {
+      id: uuidv4(),
+      text: trimmed,
+      completed: false,
+      createdAt: Date.now(),
+    };
+    setTodos((s) => [newTodo, ...s]);
+    setText("");
+  }
+
+  function toggleTodo(id: string) {
+    setTodos((s) => s.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+  }
+
+  function removeTodo(id: string) {
+    setTodos((s) => s.filter((t) => t.id !== id));
+  }
+
+  function startEdit(todo: Todo) {
+    setEditingId(todo.id);
+    setEditingText(todo.text);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditingText("");
+  }
+
+  function saveEdit(id: string) {
+    const trimmed = editingText.trim();
+    if (!trimmed) {
+      // if empty after edit, remove
+      removeTodo(id);
+      cancelEdit();
+      return;
+    }
+    setTodos((s) => s.map((t) => (t.id === id ? { ...t, text: trimmed } : t)));
+    cancelEdit();
+  }
+
+  function clearCompleted() {
+    setTodos((s) => s.filter((t) => !t.completed));
+  }
+
+  const visible = todos.filter((t) => {
+    if (filter === "all") return true;
+    if (filter === "active") return !t.completed;
+    return t.completed;
+  });
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-app-gradient">
+      <div className="w-full max-w-2xl">
+        <header className="mb-6">
+          <h1 className="text-4xl font-extrabold leading-tight tracking-tight mb-2">Beautiful Todos</h1>
+          <p className="text-muted">A small, elegant todo app — persists locally in your browser.</p>
+        </header>
+
+        <section className="todo-card">
+          <form onSubmit={addTodo} className="flex gap-3 items-center mb-4">
+            <input
+              ref={inputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="What would you like to do today?"
+              className="flex-1 input-base"
+              aria-label="New todo"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+            <button type="submit" className="btn-primary" aria-label="Add todo">
+              Add
+            </button>
+          </form>
+
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <div className="flex gap-2">
+              <FilterButton active={filter === "all"} onClick={() => setFilter("all")}>All</FilterButton>
+              <FilterButton active={filter === "active"} onClick={() => setFilter("active")}>Active</FilterButton>
+              <FilterButton active={filter === "completed"} onClick={() => setFilter("completed")}>Completed</FilterButton>
+            </div>
+
+            <div className="flex items-center gap-3 text-sm text-muted">
+              <span>{todos.filter((t) => !t.completed).length} left</span>
+              <button className="link" onClick={clearCompleted} disabled={!todos.some((t) => t.completed)}>
+                Clear completed
+              </button>
+            </div>
+          </div>
+
+          <ul className="space-y-2">
+            {visible.length === 0 ? (
+              <li className="text-center text-muted py-6">No todos here — add something to get started ✨</li>
+            ) : (
+              visible.map((todo) => (
+                <li key={todo.id} className="todo-row">
+                  <label className="flex items-center gap-3 flex-1">
+                    <input
+                      type="checkbox"
+                      checked={todo.completed}
+                      onChange={() => toggleTodo(todo.id)}
+                      className="checkbox"
+                      aria-label={`Mark ${todo.text} as ${todo.completed ? "active" : "completed"}`}
+                    />
+                    {editingId === todo.id ? (
+                      <input
+                        className="flex-1 input-edit"
+                        value={editingText}
+                        onChange={(e) => setEditingText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit(todo.id);
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <div
+                        onDoubleClick={() => startEdit(todo)}
+                        className={`flex-1 truncate ${todo.completed ? "line-through text-muted" : ""}`}
+                        title={todo.text}
+                      >
+                        {todo.text}
+                      </div>
+                    )}
+                  </label>
+
+                  <div className="flex items-center gap-2">
+                    {editingId === todo.id ? (
+                      <>
+                        <button className="btn-ghost" onClick={() => saveEdit(todo.id)} aria-label="Save">
+                          Save
+                        </button>
+                        <button className="btn-ghost" onClick={cancelEdit} aria-label="Cancel">
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="btn-ghost" onClick={() => startEdit(todo)} aria-label="Edit">
+                          Edit
+                        </button>
+                        <button className="btn-danger" onClick={() => removeTodo(todo.id)} aria-label="Delete">
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </li>
+              ))
+            )}
+          </ul>
+
+          <footer className="mt-6 text-xs text-muted">Tip: double-click a todo to edit it. Press Enter to save.</footer>
+        </section>
+
+        <footer className="mt-8 text-center text-sm text-muted">Built with ❤️ — client-side, simple and pretty.</footer>
+      </div>
     </div>
+  );
+}
+
+function FilterButton({
+  children,
+  active,
+  onClick,
+}: {
+  children: React.ReactNode;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1 rounded-md text-sm font-medium transition ${
+        active ? "bg-foreground text-background shadow-sm" : "bg-transparent text-muted hover:bg-black/[0.03]"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
